@@ -24,7 +24,6 @@ export default function Service() {
 
     ws.onopen = () => {
       console.log("WebSocket connected");
-      // Send the metrics endpoint
       ws.send(service.endpoint);
     };
 

@@ -1,6 +1,8 @@
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client.parser import text_string_to_metric_families
+from tortoise.contrib.fastapi import register_tortoise
+from models import User, Service
 import httpx
 import requests
 import time
@@ -9,6 +11,13 @@ import asyncio
 
 app = FastAPI()
 
+register_tortoise(
+    app,
+    db_url="postgres://admin:admin@localhost:5432/mydb",
+    modules={"models": ["models"]},
+    generate_schemas=True,  
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],      
@@ -16,19 +25,6 @@ app.add_middleware(
     allow_methods=["*"],         
     allow_headers=["*"],         
 )
-
-
-
-all_metrics = []
-
-from fastapi import FastAPI, WebSocket
-from prometheus_client.parser import text_string_to_metric_families
-import httpx
-import asyncio
-
-app = FastAPI()
-
-all_metrics = []
 
 @app.websocket("/")
 async def services(ws: WebSocket):
@@ -55,3 +51,41 @@ async def services(ws: WebSocket):
                 await ws.send_json({"error": str(e)})
             
             await asyncio.sleep(2)
+
+
+@app.post('/signup')
+async def signup(req: Request):
+    data = await req.json()
+    name = data['username']
+    email = data['email']
+    password = data['password']
+    print(data)
+    user = await User.create(name=name, email=email, password=password)
+    await user.save()
+    
+
+
+@app.post("/login")
+async def login(req: Request):
+    data = await req.json()
+    email = data['email']
+    password = data['password']
+    user = await User.filter(email=email).first()
+    
+    if not user or password != user.password:
+        return {"error": "Invalid email or password"}
+
+    return {"userid":user.id,"email": user.email, "username": user.name}
+
+
+@app.post("/add-service")
+async def addService(req: Request):
+    data = await req.json()
+    userid = data['userid']
+    url = data['url']
+    status = data['status']
+    
+    user = await User.get(id=userid)
+    
+    service = await Service.create(url=url,status=status,user=user)
+    await service.save()

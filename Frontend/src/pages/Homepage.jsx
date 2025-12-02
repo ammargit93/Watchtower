@@ -1,51 +1,83 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
+const ALL_METRICS = [
+  "REQUEST_COUNT",
+  "ERROR_COUNT",
+  "MEMORY_USAGE",
+  "ACTIVE_USERS",
+  "REQUEST_LATENCY",
+  "RESPONSE_SIZE",
+];
+
 export default function Homepage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [ip, setIp] = useState("");
   const [port, setPort] = useState("");
+  const [selectedMetrics, setSelectedMetrics] = useState([]);
   const [services, setServices] = useState([]);
   const navigate = useNavigate();
 
-  // Fetch services on mount (optional)
   useEffect(() => {
-    // Fetch services from backend if needed
+    // Optional: fetch services from backend
   }, []);
 
   const handleAddService = () => setIsModalOpen(true);
+
+  const toggleMetric = (metric) => {
+    setSelectedMetrics((prev) =>
+      prev.includes(metric)
+        ? prev.filter((m) => m !== metric)
+        : [...prev, metric]
+    );
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const endpoint = `http://${ip}:${port}/metrics/`;
 
-    // Open WebSocket connection
+    // Read user ID from localStorage
+    const userid = localStorage.getItem("userid");
+
+    const payload = {
+      url: endpoint,
+      status: "Unknown",
+      userid,
+      metrics: selectedMetrics,
+    };
+
+    console.log("Payload being sent:", payload);
+
+    // POST to backend
+    try {
+      const res = await fetch("http://localhost:8000/add-service", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      console.log("Service saved:", data);
+    } catch (err) {
+      console.error("Failed to save service:", err);
+    }
+
+    // WebSocket logic (optional)
     const ws = new WebSocket("ws://127.0.0.1:8000/");
+    ws.onopen = () => ws.send(endpoint);
+    ws.onmessage = (event) => console.log("Received:", event.data);
+    ws.onerror = (err) => console.error("WebSocket error:", err);
+    ws.onclose = () => console.log("WebSocket closed");
 
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-      ws.send(endpoint);
-    };
-
-    ws.onmessage = (event) => {
-      console.log("Received from backend:", event.data);
-    };
-
-    ws.onerror = (err) => {
-      console.error("WebSocket error:", err);
-    };
-
-    ws.onclose = () => {
-      console.log("WebSocket closed");
-    };
-
+    // Save service locally
     const newService = {
       ip,
       port: Number(port),
       endpoint,
       name: `Service ${services.length + 1}`,
       status: "Unknown",
+      metrics: selectedMetrics,
     };
 
     setServices((prev) => [...prev, newService]);
@@ -54,6 +86,7 @@ export default function Homepage() {
     setIsModalOpen(false);
     setIp("");
     setPort("");
+    setSelectedMetrics([]);
   };
 
   return (
@@ -71,7 +104,6 @@ export default function Homepage() {
 
       {/* Main Section */}
       <div className="flex-1 flex flex-col">
-        {/* Navbar */}
         <div className="w-full h-16 bg-white shadow flex items-center justify-between px-6">
           <h1 className="text-xl font-semibold text-gray-800">Dashboard</h1>
           <button
@@ -82,7 +114,6 @@ export default function Homepage() {
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 flex flex-col gap-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Watchtower</h2>
@@ -101,6 +132,9 @@ export default function Homepage() {
                   <h3 className="font-semibold text-gray-800 text-lg">{service.name || `Service ${index + 1}`}</h3>
                   <p className="text-gray-500 mt-1">
                     IP: {service.ip} | Port: {service.port}
+                  </p>
+                  <p className="text-gray-500 mt-1">
+                    Metrics: {service.metrics?.join(", ") || "None"}
                   </p>
                 </div>
                 <span
@@ -142,6 +176,22 @@ export default function Homepage() {
                 className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
+
+              {/* Metrics Selection */}
+              <p className="font-semibold mt-2">Select Metrics</p>
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded">
+                {ALL_METRICS.map((metric) => (
+                  <label key={metric} className="flex items-center space-x-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedMetrics.includes(metric)}
+                      onChange={() => toggleMetric(metric)}
+                    />
+                    <span>{metric}</span>
+                  </label>
+                ))}
+              </div>
+
               <div className="flex justify-end gap-2 mt-4">
                 <button
                   type="button"
