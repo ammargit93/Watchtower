@@ -116,7 +116,6 @@ async def addService(req: Request):
     url = data['url']
     status = data['status']
     metrics = data['metrics']
-    chartedservice = set(metrics)&set({"ACTIVE_USERS","MEMORY_USAGE"})
     
     url_map = {
         "localhost":"127.0.0.1"
@@ -138,3 +137,5 @@ async def getServices(userid: int):
     user = await User.get(id=userid)
     services = await Service.filter(user=user).values()    
     return {"services":services}
+
+

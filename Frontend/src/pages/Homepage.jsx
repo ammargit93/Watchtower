@@ -48,52 +48,6 @@ export default function Homepage() {
     );
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const endpoint = `http://${ip}:${port}/metrics/`;
-    const userid = localStorage.getItem("userid");
-
-    const payload = {
-      url: endpoint,
-      name: serviceName,
-      status: "Unknown",
-      userid,
-      metrics: selectedMetrics,
-    };
-
-    try {
-      const res = await fetch("http://localhost:8000/add-service", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      console.log("Service saved:", data);
-
-      // Reload services after adding
-      const refetch = await fetch(`http://localhost:8000/get-services/${userid}`);
-      const refreshed = await refetch.json();
-      setServices(refreshed.services);
-    } catch (err) {
-      console.error("Failed to save service:", err);
-    }
-    // WebSocket logic (optional)
-    const ws = new WebSocket("ws://127.0.0.1:8000/");
-    ws.onopen = () => ws.send(endpoint);
-    ws.onmessage = (event) => console.log("Received:", event.data);
-    ws.onerror = (err) => console.error("WebSocket error:", err);
-    ws.onclose = () => console.log("WebSocket closed");
-
-
-    setIsModalOpen(false);
-    setIp("");
-    setPort("");
-    setServiceName("");
-    setSelectedMetrics([]);
-  };
-
   // Extract IP + port from service.url
   function parseUrl(url) {
     try {
@@ -110,6 +64,63 @@ export default function Homepage() {
   // Handle click: navigate to service page and fetch metrics there
   const handleServiceClick = (service) => {
     navigate(`/service/${service.id}`, { state: { service } });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Determine if host is local
+    const isLocalHost = ip === "localhost" || ip === "127.0.0.1";
+
+    // Construct endpoint URL
+    const endpoint = isLocalHost
+      ? `http://${ip}:${port}/metrics/`
+      : ip.endsWith("/")
+      ? ip + "metrics/"
+      : ip + "/metrics/";
+
+    const userid = localStorage.getItem("userid");
+
+    const payload = {
+      url: endpoint,
+      service_name: serviceName,
+      status: "Unknown",
+      userid,
+      metrics: selectedMetrics,
+    };
+
+    try {
+      // Save service
+      const res = await fetch("http://localhost:8000/add-service", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      console.log("Service saved:", data);
+
+      // Reload services after adding
+      const refetch = await fetch(`http://localhost:8000/get-services/${userid}`);
+      const refreshed = await refetch.json();
+      setServices(refreshed.services);
+    } catch (err) {
+      console.error("Failed to save service:", err);
+    }
+
+    // Optional WebSocket logic
+    const ws = new WebSocket("ws://127.0.0.1:8000/");
+    ws.onopen = () => ws.send(endpoint);
+    ws.onmessage = (event) => console.log("Received:", event.data);
+    ws.onerror = (err) => console.error("WebSocket error:", err);
+    ws.onclose = () => console.log("WebSocket closed");
+
+    // Reset modal
+    setIsModalOpen(false);
+    setIp("");
+    setPort("");
+    setServiceName("");
+    setSelectedMetrics([]);
   };
 
   return (
@@ -142,7 +153,7 @@ export default function Homepage() {
 
           {/* Services Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-            {services.map((service, index) => {
+            {services.map((service) => {
               const { ip, port } = parseUrl(service.url);
               return (
                 <div
@@ -150,9 +161,8 @@ export default function Homepage() {
                   className="p-4 bg-white shadow rounded-lg hover:shadow-lg transition cursor-pointer"
                   onClick={() => handleServiceClick(service)}
                 >
-
                   <h3 className="font-semibold text-gray-800 text-lg">
-                    Service {index + 1}
+                    {service.service_name}
                   </h3>
                   <p className="text-gray-500 mt-1">IP: {ip}</p>
                   <p className="text-gray-500 mt-1">Port: {port}</p>
@@ -190,22 +200,27 @@ export default function Homepage() {
                 className="border p-2 rounded"
                 required
               />
+
               <input
                 type="text"
-                placeholder="Service IP"
+                placeholder="Service IP or URL"
                 value={ip}
                 onChange={(e) => setIp(e.target.value)}
                 className="border p-2 rounded"
                 required
               />
-              <input
-                type="number"
-                placeholder="Port"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-                className="border p-2 rounded"
-                required
-              />
+
+              {/* Show Port input only for localhost/127.0.0.1 */}
+              {(ip === "localhost" || ip === "127.0.0.1") && (
+                <input
+                  type="number"
+                  placeholder="Port"
+                  value={port}
+                  onChange={(e) => setPort(e.target.value)}
+                  className="border p-2 rounded"
+                  required
+                />
+              )}
 
               <p className="font-semibold mt-2">Select Metrics</p>
               <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded">

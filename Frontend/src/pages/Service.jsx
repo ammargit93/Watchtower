@@ -127,9 +127,8 @@ export default function Service() {
   return (
     <div className="p-6 space-y-6">
       {/* Service Info */}
-      <div className="bg-white shadow-md rounded-lg p-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-4">
-          {service.name || `Service ${service.id}`} Analytics
+          {service.service_name || `Service ${service.id}`} Analytics
         </h1>
         <div className="flex flex-wrap gap-6 text-gray-700">
           <p>
@@ -150,10 +149,9 @@ export default function Service() {
             </span>
           </p>
         </div>
-      </div>
+      {/* </div> */}
 
       {/* Active Users Chart */}
-      <div className="bg-white shadow-md rounded-lg p-6">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">
           Active Users Over Time
         </h2>
@@ -168,17 +166,15 @@ export default function Service() {
             <Tooltip />
             <Legend />
             <Line
-              type="monotone"
+              type="linear"
               dataKey="activeUsers"
               stroke="#4f46e5"
               activeDot={{ r: 8 }}
             />
           </LineChart>
         </ResponsiveContainer>
-      </div>
 
       {/* Memory Usage Chart */}
-      <div className="bg-white shadow-md rounded-lg p-6">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">
           Memory Usage (MB) Over Time
         </h2>
@@ -193,17 +189,15 @@ export default function Service() {
             <Tooltip />
             <Legend />
             <Line
-              type="monotone"
+              type="linear"
               dataKey="memoryUsage"
               stroke="#16a34a"
               activeDot={{ r: 8 }}
             />
           </LineChart>
         </ResponsiveContainer>
-      </div>
 
       {/* HTTP Metrics Table */}
-      <div className="bg-white shadow-md rounded-lg p-6">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">
           HTTP Metrics by Endpoint
         </h2>
@@ -226,6 +220,5 @@ export default function Service() {
           </tbody>
         </table>
       </div>
-    </div>
   );
 }

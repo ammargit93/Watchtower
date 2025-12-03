@@ -28,8 +28,14 @@ class Service(models.Model):
 class Metric(models.Model):
     id = fields.IntField(primary_key=True)
     metric = fields.CharField(max_length=100)
-    service = fields.ForeignKeyField("models.Service", related_name="metrics")
-    
+    service = fields.ForeignKeyField("models.Service", related_name="metrics") 
     class Meta:
         table = "Metrics"
             
+            
+            
+class Alert(models.Model):
+    id = fields.IntField(primary_key=True)
+    alert_name = fields.CharField(max_length=200)
+    endpoint = fields.CharField(max_length=150)
+    
