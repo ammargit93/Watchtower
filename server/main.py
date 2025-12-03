@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client.parser import text_string_to_metric_families
 from tortoise.contrib.fastapi import register_tortoise
-from models import User, Service
+from models import User, Service, Metric
 import httpx
 import requests
 import time
@@ -36,22 +36,52 @@ async def services(ws: WebSocket):
             try:
                 resp = await client.get(url, timeout=5.0)
                 metrics = resp.text
-                active_users = None
+                parsed_metrics = []
 
+                # Parse all Prometheus metrics
                 for family in text_string_to_metric_families(metrics):
                     for sample in family.samples:
-                        if sample.name == "active_users":
-                            active_users = sample.value
+                        parsed_metrics.append({
+                            "name": sample.name,
+                            "labels": sample.labels,
+                            "value": sample.value
+                        })
+                result = {
+                    "requests": [],
+                    "errors": [],
+                    "other": []
+                }
 
-                if active_users is not None:
-                    await ws.send_json({"time": int(asyncio.get_event_loop().time()), "activeUsers": active_users})
+                for m in parsed_metrics:
+                    name = m['name'].lower()
+                    if "http_requests" in name and "total" in name:
+                        result["requests"].append({
+                            "endpoint": m['labels'].get('endpoint'),
+                            "method": m['labels'].get('method'),
+                            "value": m['value']
+                        })
+                    elif "http_errors" in name and "total" in name:
+                        result["errors"].append({
+                            "endpoint": m['labels'].get('endpoint'),
+                            "value": m['value']
+                        })
+                    else:
+                        result["other"].append({
+                            "name": m['name'],
+                            "labels": m['labels'],
+                            "value": m['value']
+                        })
+
+                await ws.send_json({
+                    "time": int(asyncio.get_event_loop().time()),
+                    "metrics": result
+                })
 
             except Exception as e:
                 print("Error fetching metrics:", e)
                 await ws.send_json({"error": str(e)})
             
             await asyncio.sleep(2)
-
 
 @app.post('/signup')
 async def signup(req: Request):
@@ -82,10 +112,29 @@ async def login(req: Request):
 async def addService(req: Request):
     data = await req.json()
     userid = data['userid']
+    service_name = data['service_name']
     url = data['url']
     status = data['status']
+    metrics = data['metrics']
+    chartedservice = set(metrics)&set({"ACTIVE_USERS","MEMORY_USAGE"})
     
+    url_map = {
+        "localhost":"127.0.0.1"
+    } 
+    if url in url_map:
+        url = url_map[url]
     user = await User.get(id=userid)
-    
-    service = await Service.create(url=url,status=status,user=user)
+    service = await Service.create(service_name=service_name,url=url,status=status,user=user)
     await service.save()
+    
+    for metric in metrics:
+        created_metric = await Metric.create(metric=metric, service=service)
+        await created_metric.save()
+    
+    
+    
+@app.get("/get-services/{userid}")
+async def getServices(userid: int):
+    user = await User.get(id=userid)
+    services = await Service.filter(user=user).values()    
+    return {"services":services}
